@@ -46,16 +46,6 @@ scripts/run_seq.sh              RoDeL-Seq, training and test
 scripts/run_sim.sh              RoDeL-Sim, training and test
 ```
 
-## Requirements
-
-- Linux with NVIDIA GPUs. Every stage starts one process per GPU (`GPUS`, eight by default).
-- GPU memory: the default configuration (Qwen3.5-4B) was developed on GPUs with 141 GB of memory.
-  Qwen3.5-0.8B runs on GPUs with 48 GB.
-- Disk: 9 GB for the base model, and 8 GB for the question generator if it is used. A run stores one
-  knowledge adapter per document for every teacher that is used (65 MB each with Qwen3.5-4B, 22 MB with
-  Qwen3.5-0.8B) and the merged teachers: about 200 GB for RoDeL-Seq and 130 GB for RoDeL-Sim with the
-  default models and sets.
-
 ## Installation
 
 Two Python 3.12 environments are used: one for training, distillation and evaluation, and one with vLLM for
