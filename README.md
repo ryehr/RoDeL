@@ -125,7 +125,7 @@ variables (defaults in `scripts/common.sh`):
 | `TRAIN_SETS`, `ID_SETS`, `OOD_SETS` | see above | training and test files |
 | `TEST_EVERY_ROUND` | `0` | `1` runs the test pipeline after every round instead of after the last one only |
 | `EVAL_CONFIGS` | `ks` | `ks`: trained student; `k,ks` also evaluates the untrained student with the same LoRA_k |
-| `DISTILL_JOBS`, `EVAL_JOBS` | `2`, `3` | files distilled / evaluated at the same time |
+| `DISTILL_JOBS`, `EVAL_JOBS` | `1`, `3` | files distilled / evaluated at the same time; each one adds a process on every GPU, so raise them only if the GPU memory allows |
 
 A training step takes one document per process, so the number of GPUs is the number of documents per step.
 

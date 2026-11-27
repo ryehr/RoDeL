@@ -14,8 +14,8 @@ ID_SETS=${ID_SETS:-"hotpotqa musique"}   # test sets from the training datasets
 OOD_SETS=${OOD_SETS:-"squad 2wiki nq locomo qasper narrativeqa multifieldqa triviaqa"}
 TEST_EVERY_ROUND=${TEST_EVERY_ROUND:-0}  # 1 = run the test pipeline after every round, 0 = after the last round only
 EVAL_CONFIGS=${EVAL_CONFIGS:-ks}         # ks = trained student; k,ks also evaluates the untrained student
-DISTILL_JOBS=${DISTILL_JOBS:-2}          # unit files distilled at the same time (each one uses every GPU)
-EVAL_JOBS=${EVAL_JOBS:-3}                # unit files evaluated at the same time
+DISTILL_JOBS=${DISTILL_JOBS:-1}          # unit files distilled at the same time (each one adds a process on every GPU)
+EVAL_JOBS=${EVAL_JOBS:-3}                # unit files evaluated at the same time (each one adds a process on every GPU)
 PORT=${PORT:-29677}                      # port of torch.distributed.run
 
 TEST_SETS="$ID_SETS $OOD_SETS"
