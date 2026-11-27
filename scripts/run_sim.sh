@@ -4,6 +4,7 @@
 #             is distilled into a fresh knowledge adapter, and both adapters receive their GRPO update
 #   test:     the trained teacher synthesizes for the test documents, the answer sets are distilled, and the
 #             student answers the test questions without the documents.
+# Synthetic questions that are not in the data directory yet are generated first (scripts/generate_questions.sh).
 # Finished stages are skipped when the script is started again.
 #   bash scripts/run_sim.sh                 (settings: scripts/common.sh)
 set -e
@@ -11,6 +12,7 @@ cd "$(dirname "$0")/.."
 RUN=${RUN:-runs/sim}
 source scripts/common.sh
 
+questions "$TRAIN_SETS $TEST_SETS"
 T=""; S=""
 for r in $(seq 1 $ROUNDS); do
   joint_update j$r "$T" "$S"

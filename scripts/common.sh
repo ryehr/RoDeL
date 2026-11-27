@@ -1,14 +1,16 @@
 #!/bin/bash
-# Settings and pipeline stages shared by run_seq.sh and run_sim.sh (sourced by them).
+# Settings and pipeline stages shared by generate_questions.sh, run_seq.sh and run_sim.sh (sourced by them).
 # Every setting can be overridden from the environment, e.g.  MODEL=Qwen/Qwen3.5-2B CAP=2048 bash scripts/run_seq.sh
 
 MODEL=${MODEL:-Qwen/Qwen3.5-4B}          # base model
 CAP=${CAP:-1024}                         # length limit, in tokens, of every generation (teacher and student)
+QGEN_MODEL=${QGEN_MODEL:-Qwen/Qwen3-4B}    # model that writes the synthetic questions
+QGEN_CAP=${QGEN_CAP:-8192}               # length limit, in tokens, of one question-generation output
 ROUNDS=${ROUNDS:-3}                      # training rounds
 GPUS=${GPUS:-0,1,2,3,4,5,6,7}            # one process per GPU; a training step takes one document per process
-DATA=${DATA:-data}                       # unit files and synthetic questions
+DATA=${DATA:-data}                       # unit files; the synthetic questions are written next to them
 PY=${PY:-python}                         # interpreter of the training environment
-PY_VLLM=${PY_VLLM:-python}               # interpreter of the vLLM environment (synthesis)
+PY_VLLM=${PY_VLLM:-python}               # interpreter of the vLLM environment (question generation, synthesis)
 TRAIN_SETS=${TRAIN_SETS:-"train_hotpotqa train_musique"}
 ID_SETS=${ID_SETS:-"hotpotqa musique"}   # test sets from the training datasets
 OOD_SETS=${OOD_SETS:-"squad 2wiki nq locomo qasper narrativeqa multifieldqa triviaqa"}
@@ -28,6 +30,21 @@ nunits(){ grep -c "" $DATA/$1.jsonl; }
 nrows(){ cat "$@" 2>/dev/null | wc -l; }
 wait_all(){ local fail=0 p; for p in "${pids[@]}"; do wait $p || fail=1; done
   if [ $fail = 1 ]; then log "$1 FAILED (see $RUN/logs)"; exit 1; fi; }
+
+questions(){ # $1 unit files: synthetic questions that are not in $DATA yet -> $DATA/<set>.questions.jsonl
+  local S i
+  for S in $1; do
+    if [ "$(nrows $DATA/$S.questions.jsonl)" -ge "$(nunits $S)" ]; then continue; fi
+    log "questions $S"; pids=()
+    for i in "${!GPU[@]}"; do
+      CUDA_VISIBLE_DEVICES=${GPU[$i]} $PY_VLLM rodel/generate_questions.py --set $S --model $QGEN_MODEL --max-new-tokens $QGEN_CAP \
+        --data-dir $DATA --shard $i --nshards $NGPU > $RUN/logs/questions_$S.shard$i.log 2>&1 & pids+=($!)
+    done
+    wait_all "questions $S"
+    for i in "${!GPU[@]}"; do cat $DATA/$S.questions.shard$i.jsonl; done > $DATA/$S.questions.tmp
+    mv $DATA/$S.questions.tmp $DATA/$S.questions.jsonl; rm -f $DATA/$S.questions.shard*.jsonl
+  done
+}
 
 synthesize(){ # $1 answers tag, $2 teacher (base model, or directory with the teacher adapter merged in), $3 unit files
   local S i

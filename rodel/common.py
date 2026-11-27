@@ -2,7 +2,10 @@
 import json
 import os
 import re
+import signal
 import string
+import sys
+import time
 from collections import Counter
 
 import torch
@@ -130,6 +133,37 @@ def vllm_model_kwargs(model_path):
     return {"language_model_only": True} if hasattr(AutoConfig.from_pretrained(model_path), "vision_config") else {}
 
 
+def prepare_vllm():
+    """Environment of a vLLM process: the tools of its Python environment on PATH (vLLM builds kernels with them
+    at first use) and a separate port range per GPU, so that engines started together do not collide."""
+    os.environ["PATH"] = os.path.dirname(sys.executable) + os.pathsep + os.environ.get("PATH", "")
+    if "VLLM_PORT" not in os.environ:
+        os.environ["VLLM_PORT"] = str(42000 + 50 * int((os.environ.get("CUDA_VISIBLE_DEVICES") or "0").split(",")[0]))
+
+
+def exit_with_children(code=0):
+    """Terminate the vLLM engine processes started by this process, then exit without interpreter teardown."""
+    sys.stdout.flush(); sys.stderr.flush()
+    me, kids = os.getpid(), []
+    for d in os.listdir("/proc"):
+        if d.isdigit():
+            try:
+                with open(f"/proc/{d}/stat") as f:
+                    if int(f.read().split(")")[-1].split()[1]) == me:
+                        kids.append(int(d))
+            except Exception:
+                pass
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        for k in kids:
+            try:
+                os.kill(k, sig)
+            except Exception:
+                pass
+        if sig == signal.SIGTERM:
+            time.sleep(3)
+    os._exit(code)
+
+
 def left_pad(seqs, pad_id, device):
     L = max(len(s) for s in seqs)
     ids = torch.full((len(seqs), L), pad_id, dtype=torch.long)
@@ -193,9 +227,14 @@ def load_units(data_dir, name):
     return units
 
 
+def questions_path(data_dir, name, shard=None):
+    """Synthetic questions of a unit file; with `shard`, the part written by one generation process."""
+    return os.path.join(data_dir, f"{name}.questions.jsonl" if shard is None else f"{name}.questions.shard{shard}.jsonl")
+
+
 def load_questions(data_dir, name):
     """Synthetic questions of {data_dir}/{name}.questions.jsonl -> {unit id: [question, ...]}."""
-    with open(os.path.join(data_dir, f"{name}.questions.jsonl"), encoding="utf-8") as f:
+    with open(questions_path(data_dir, name), encoding="utf-8") as f:
         return {r["id"]: [x["q"] for x in r["questions"]] for r in map(json.loads, f)}
 
 

@@ -1,4 +1,7 @@
 __pycache__/
 *.pyc
-/data/
+/data/*.questions.shard*
+/data/*.questions.tmp
+/data_small/
+/data_questions/
 /runs/

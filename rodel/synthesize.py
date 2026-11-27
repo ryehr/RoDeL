@@ -13,38 +13,13 @@ Writes {run-dir}/answers/{tag}/{set}.shard{i}.jsonl, one row per document: {"id"
 import argparse
 import json
 import os
-import signal
 import sys
-import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from common import (DEFAULT_MAX_NEW_TOKENS, DEFAULT_MODEL, INFER_SAMPLING, answers_path, dataset_of, load_questions,
-                    load_units, teacher_prompt, vllm_model_kwargs)
+from common import (DEFAULT_MAX_NEW_TOKENS, DEFAULT_MODEL, INFER_SAMPLING, answers_path, dataset_of, exit_with_children,
+                    load_questions, load_units, prepare_vllm, teacher_prompt, vllm_model_kwargs)
 
 LONG_DOCUMENT_SETS = ("narrativeqa", "nq", "locomo")     # served with a 40960-token context window, the others with 20480
-
-
-def exit_with_children(code=0):
-    """Terminate the vLLM engine processes started by this process, then exit without interpreter teardown."""
-    sys.stdout.flush(); sys.stderr.flush()
-    me, kids = os.getpid(), []
-    for d in os.listdir("/proc"):
-        if d.isdigit():
-            try:
-                with open(f"/proc/{d}/stat") as f:
-                    if int(f.read().split(")")[-1].split()[1]) == me:
-                        kids.append(int(d))
-            except Exception:
-                pass
-    for sig in (signal.SIGTERM, signal.SIGKILL):
-        for k in kids:
-            try:
-                os.kill(k, sig)
-            except Exception:
-                pass
-        if sig == signal.SIGTERM:
-            time.sleep(3)
-    os._exit(code)
 
 
 def main():
@@ -74,8 +49,7 @@ def main():
     if not units:                          # more shards than units
         open(out, "w").close()
         return
-    if "VLLM_PORT" not in os.environ:      # a separate port range per GPU, so that engines started together do not collide
-        os.environ["VLLM_PORT"] = str(42000 + 50 * int((os.environ.get("CUDA_VISIBLE_DEVICES") or "0").split(",")[0]))
+    prepare_vllm()
 
     from transformers import AutoTokenizer
     from vllm import LLM, SamplingParams
